@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Roadster Market</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #0e1217;
+      --card-bg: #181f2a;
+      --border: #232c3d;
+      --accent: #2ea5ff;
+      --text-main: #f0f4f8;
+      --text-muted: #8b9bb4;
+      --star-color: #ffd028;
+      --ton-color: #0098ea;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text-main); padding: 14px; -webkit-tap-highlight-color: transparent; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .brand { font-size: 19px; font-weight: 800; letter-spacing: -0.5px; }
+    .brand span { color: var(--accent); }
+    .status-badge { font-size: 11px; background: rgba(46, 165, 255, 0.12); color: var(--accent); padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+    
+    .search-box { width: 100%; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; color: #fff; font-size: 14px; outline: none; margin-bottom: 12px; }
+    .search-box::placeholder { color: var(--text-muted); }
+
+    .currency-switch { display: flex; gap: 8px; margin-bottom: 16px; }
+    .curr-btn { flex: 1; padding: 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; }
+    .curr-btn.active { background: #222d3d; color: #fff; border-color: var(--accent); }
+
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .item-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; }
+    .item-img-wrap { width: 100%; height: 110px; background: #111620; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 42px; margin-bottom: 10px; }
+    .item-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+    .item-supply { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; }
+    
+    .item-price-wrap { display: flex; flex-direction: column; gap: 2px; margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--border); }
+    .price-stars { color: var(--star-color); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 4px; }
+    .price-ton { color: var(--ton-color); font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+    
+    .buy-btn { margin-top: 8px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 0; font-weight: 600; font-size: 12px; cursor: pointer; }
+    .buy-btn:active { opacity: 0.8; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">RDSTR <span>MARKET</span></div>
+    <div class="status-badge">FRAGMENT STYLE</div>
+  </header>
+
+  <input type="text" id="searchInput" class="search-box" placeholder="Поиск подарков и NFT...">
+
+  <div class="currency-switch">
+    <div class="curr-btn active" id="filterAll" onclick="setFilter('all')">Все цены</div>
+    <div class="curr-btn" id="filterStars" onclick="setFilter('stars')">⭐️ Stars</div>
+    <div class="curr-btn" id="filterTon" onclick="setFilter('ton')">💎 TON</div>
+  </div>
+
+  <div class="grid" id="itemsGrid"></div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    // Мокап каталога подарков с ценами в Stars и TON
+    const gifts = [
+      { id: 1, name: "Snoop Cigar", num: "#111723", emoji: "🚬", stars: 2000, ton: 14.5, link: "https://t.me/nft/SnoopCigar-111723" },
+      { id: 2, name: "Party Sparkler", num: "#152734", emoji: "✨", stars: 1500, ton: 10.8, link: "https://t.me/nft/PartySparkler-152734" },
+      { id: 3, name: "Lol Pop", num: "#46490", emoji: "🍭", stars: 600, ton: 4.2, link: "https://t.me/nft/LolPop-46490" },
+      { id: 4, name: "Desk Calendar", num: "#165444", emoji: "📅", stars: 15000, ton: 105.0, link: "https://t.me/nft/DeskCalendar-165444" },
+      { id: 5, name: "Precious Peach", num: "#9231", emoji: "🍑", stars: 3200, ton: 22.4, link: "https://t.me/nft/Peach-9231" },
+      { id: 6, name: "Golden Star", num: "#777", emoji: "🌟", stars: 50000, ton: 360.0, link: "https://t.me/nft/Star-777" }
+    ];
+
+    let currentMode = 'all';
+
+    function renderGifts() {
+      const q = document.getElementById("searchInput").value.toLowerCase();
+      const grid = document.getElementById("itemsGrid");
+      grid.innerHTML = "";
+
+      gifts.filter(g => g.name.toLowerCase().includes(q) || g.num.includes(q)).forEach(g => {
+        const card = document.createElement("div");
+        card.className = "item-card";
+
+        let priceHtml = "";
+        if (currentMode === 'all' || currentMode === 'stars') {
+          priceHtml += `<div class="price-stars">⭐️ ${g.stars.toLocaleString()} Stars</div>`;
+        }
+        if (currentMode === 'all' || currentMode === 'ton') {
+          priceHtml += `<div class="price-ton">💎 ${g.ton.toFixed(1)} TON</div>`;
+        }
+
+        card.innerHTML = `
+          <div class="item-img-wrap">${g.emoji}</div>
+          <div class="item-title">${g.name}</div>
+          <div class="item-supply">${g.num}</div>
+          <div class="item-price-wrap">${priceHtml}</div>
+          <button class="buy-btn" onclick="openOffer('${g.link}')">Купить / Оффер</button>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function setFilter(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.curr-btn').forEach(b => b.classList.remove('active'));
+      if(mode === 'all') document.getElementById('filterAll').classList.add('active');
+      if(mode === 'stars') document.getElementById('filterStars').classList.add('active');
+      if(mode === 'ton') document.getElementById('filterTon').classList.add('active');
+      renderGifts();
+    }
+
+    function openOffer(link) {
+      tg.openTelegramLink(link);
+    }
+
+    document.getElementById("searchInput").addEventListener("input", renderGifts);
+    renderGifts();
+  </script>
+</body>
+</html>
